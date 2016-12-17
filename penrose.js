@@ -1,11 +1,9 @@
 (function(){
-  var tilingEl = document.getElementById('penrose-tiling')
-    , outerRadius = 0.9
-    , innerRadius = outerRadius * Math.sin(18 * Math.PI / 180)
-    , top = innerRadius
-    , bottom = -innerRadius
-    , left = -outerRadius
-    , right = outerRadius
+  var a18 = 18 * Math.PI / 180
+    , sin18 = Math.sin(a18)
+    , narrowDiamondMarkup =
+        "<path d='M -1 0 L 0 " + sin18 + " L 1 0 L 0 -" + sin18 + " z' fill='orange' vector-effect='non-scaling-stroke' stroke='black' />"
+    , tilingEl = document.getElementById('penrose-tiling')
   ;
-  tilingEl.innerHTML="<path d='M " + left + " 0 L 0 " + top + " L " + right + " 0 L 0 " + bottom + " z' fill='orange' />";
+  tilingEl.innerHTML = narrowDiamondMarkup;
 })();
