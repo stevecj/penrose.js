@@ -45,8 +45,21 @@
 <body>
   <h1>Penrose Tiling Generator</h1>
 
+  <div>
+    <label for='initial-shape-select'>Initial shape</label>
+    <select id='initial-shape-select'>
+      <option value='wt'>Wide 1/2-Diamond</option>
+      <option value='nt'>Narrow 1/2-Diamond</option>
+      <option value='wd' selected>Wide Full-Diamond</option>
+      <option value='nd'>Narrow Full-Diamond</option>
+    </select>
+  </div>
+
   <svg id='pt-panel' viewbox='-1 -1 2 2' preserveAspectRatio='xMidYMid meet'>
-    <g id='pt-reference-frame' transform="scale(1.0 -1.0)"></g>
+    <defs id='pt-defs'>
+    </defs>
+    <g id='pt-reference-frame' transform="scale(1.0 -1.0)">
+    </g>
   </svg>
 
   <script src='penrose.js'></script>
