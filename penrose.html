@@ -34,7 +34,7 @@
     h1 {
       margin-left: 0.375em;
     }
-    #penrose-tiling {
+    #pt-panel {
       box-sizing: border-box;
       border: solid 2px #ddd;
       height: 100%;
@@ -45,7 +45,8 @@
 <body>
   <h1>Penrose Tiling Generator</h1>
 
-  <svg id='penrose-tiling' viewbox='-1 -1 2 2' preserveAspectRatio='xMidYMid meet'>
+  <svg id='pt-panel' viewbox='-1 -1 2 2' preserveAspectRatio='xMidYMid meet'>
+    <g id='pt-reference-frame' transform="scale(1.0 -1.0)"></g>
   </svg>
 
   <script src='penrose.js'></script>
