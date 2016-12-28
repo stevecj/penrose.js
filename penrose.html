@@ -34,31 +34,51 @@
     h1 {
       margin-left: 0.375em;
     }
+    #instructions-panel {
+      position: relative;
+    }
     #pt-panel {
       box-sizing: border-box;
       border: solid 2px #ddd;
       height: 100%;
     }
+    .pt-tile {
+      stroke: black;
+      vector-effect: non-scaling-stroke;
+    }
+    .pt-skinny {
+      fill: orange;
+    }
+    .pt-fat {
+      fill: lightblue;
+    }
+    /* Note: angles are acute and obtuse */
   </style>
 </head>
 
 <body>
   <h1>Penrose Tiling Generator</h1>
 
-  <div>
-    <label for='initial-shape-select'>Initial shape</label>
-    <select id='initial-shape-select'>
-      <option value='wt'>Wide 1/2-Diamond</option>
-      <option value='nt'>Narrow 1/2-Diamond</option>
-      <option value='wd' selected>Wide Full-Diamond</option>
-      <option value='nd'>Narrow Full-Diamond</option>
-    </select>
+  <div id='instructions-panel'>
+    &hellip;
   </div>
 
   <svg id='pt-panel' viewbox='-1 -1 2 2' preserveAspectRatio='xMidYMid meet'>
-    <defs id='pt-defs'>
+    <defs>
+      <!-- `d` attributes of tile paths are assigned by JavaScript code. -->
+      <path id='skinny-tile' class='pt-tile pt-skinny' />
+      <path id='fat-tile' class='pt-tile pt-fat' />
     </defs>
-    <g id='pt-reference-frame' transform="scale(1.0 -1.0)">
+    <g id='pt-cartesian-orientation' transform='scale(1.0 -1.0)'>
+      <g id='pt-window' transform="scale(1.0 1.0) translate(0 0)">
+        <g id='pt-tiling'>
+          <use href='#fat-tile' xlink:href='#fat-tile' />
+          <use href='#skinny-tile' xlink:href='#skinny-tile' />
+        </g>
+        <g id='pt-overlay'>
+          <rect id='reference-point' x='0' y='0' width='0.00001' height='0.00001' stroke='grey' stroke-width='16' stroke-linejoin='round' vector-effect='non-scaling-stroke'/>
+        </g>
+      </g>
     </g>
   </svg>
 
