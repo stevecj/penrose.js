@@ -1,233 +1,292 @@
-(function(document, Math){
+(function( document, Math ) {
   "use strict";
 
-  var windowEl = document.getElementById('pt-window')
+  var directions = {
+            '0': new Point( new X( 2, -2 ), new Y( 0,  0 ) )
+
+        ,  '36': new Point( new X( 1,  0 ), new Y( 1,  0 ) )
+        ,  '72': new Point( new X( 0,  1 ), new Y( 0,  1 ) )
+        , '108': new Point( new X( 0, -1 ), new Y( 0,  1 ) )
+        , '144': new Point( new X(-1,  0 ), new Y( 1,  0 ) )
+
+        , '180': new Point( new X(-2,  2 ), new Y( 0,  0 ) )
+
+        , '216': new Point( new X(-1,  0 ), new Y(-1,  0 ) )
+        , '252': new Point( new X( 0, -1 ), new Y( 0, -1 ) )
+        , '288': new Point( new X( 0,  1 ), new Y( 0, -1 ) )
+        , '324': new Point( new X( 1,  0 ), new Y(-1,  0 ) )
+      }
+    , a36 = 36 * Math.PI / 180
+    , a72 = 72 * Math.PI / 180
+    , cos36 = Math.cos(a36)
+    , cos72 = Math.cos(a72)
+    , sin36 = Math.sin(a36)
+    , sin72 = Math.sin(a72)
     , tilingEl = document.getElementById('pt-tiling')
-    , fatTileEl = document.getElementById('fat-tile')
-    , skinnyTileEl = document.getElementById('skinny-tile')
-    , fatPSL = fatTileEl.pathSegList
-    , skinnyPSL = skinnyTileEl.pathSegList
   ;
 
   /**
-   * smallAngleDeg is the smaller of the 2 angles of the diamond
-   * (parallelogram) shaped tile.
-   * edgeLinks is an array of 4 2-element arrays, each describing
-   * a edge of the tile, starting from the initial vertex and
-   * proceeding in a counterclockwise direction.
-   * Each 2-element array contains a number identifying the type
-   * of edge followed by a number identifying the type of edge
-   * that it can be connected to.
+   * Represents a point or a direction vector in terms
+   * of Cartesian x and y coordinates.
    */
-  function Tile(smallAngleDeg, edgeLinks) {
-    var me = this
-      , smallAngleRad = smallAngleDeg * Math.PI / 180
-      , cosA = Math.cos(smallAngleRad)
-      , sinA = Math.sin(smallAngleRad)
-      , linkTypeEdges = []
-    ;
+  function Point( x, y ) {
+    this.x = x;
+    this.y = y;
 
-    this.smallAngleDeg = smallAngleDeg;
-    this.edgeLinks     = edgeLinks;
-    this.x = 0.0;
-    this.y = 0.0;
-    this.orientationDeg = 0;
-    this.baseVertexPoints = [
-        [0.0, 0.0]
-      , [1.0, 0.0]
-      , [1.0 + cosA, sinA]
-      , [cosA, sinA]
-    ];
-    this.edgeOrientationOffsets = [
-        0
-      , smallAngleDeg
-      , 180
-      , 180 + smallAngleDeg
-    ];
+    this.key = [ x.key, y.key ];
 
-    this.eachBaseVertexCoords = function(callback) {
-      me.baseVertexPoints.forEach(function(vertexPt, idx) {
-        callback( vertexPt[0], vertexPt[1], idx );
-      });
+    this.add = function( other ) {
+      return new Point(
+          this.x.add( other.x )
+        , this.y.add( other.y )
+      );
+    };
+  }
+  Point.prototype.toString = function() {
+    return 'Point(x: ' + this.x + ', y: ' + this.y + ')';
+  };
+
+  /**
+   * An x direction component expressed as the sum of multiples
+   * of cos(36 degrees) and cos(72 degrees).
+   * Since cos(36 degrees) minus cos(72 degrees) equals 1/2,
+   * multiples of 1/2 can also be expressed.
+   */
+  function X(c36, c72) {
+    this.c36 = c36;
+    this.c72 = c72;
+
+    this.key = [ c36, c72 ];
+
+    this.add = function( other ) {
+      return new X(
+          this.c36 + other.c36
+        , this.c72 + other.c72
+      );
+    }
+  }
+  X.prototype.toString = function() {
+    return 'X(c36: ' + this.c36 + ', c72: ' + this.c72 + ')';
+  };
+  X.prototype.toFloat = function() {
+    return this.c36 * cos36 + this.c72 * cos72;
+  }
+
+  /**
+   * A y direction component expressed as the sum of multiples
+   * of sin(36 degrees) and sin(72 degrees).
+   */
+  function Y(s36, s72) {
+    this.s36 = s36;
+    this.s72 = s72;
+
+    this.key = [ s36, s72 ];
+
+    this.add = function( other ) {
+      return new Y(
+          this.s36 + other.s36
+        , this.s72 + other.s72
+      );
+    }
+  }
+  Y.prototype.toString = function() {
+    return 'Y(s36: ' + this.cs6 + ', s72: ' + this.s72 + ')';
+  };
+  Y.prototype.toFloat = function() {
+    return this.s36 * sin36 + this.s72 * sin72;
+  }
+
+  /**
+   * A direction starting from a specific point, also having a
+   * type (string value) used in determining whether the ray
+   * may coincide with another ray.
+   */
+  function Ray( type, originPt, angleDeg ) {
+    this.type     = type;
+    this.originPt = originPt
+    this.angleDeg = angleDeg;
+
+    this.direction = directions[angleDeg];
+    this.key = [ originPt.key, angleDeg ];
+  }
+  Ray.prototype.toString = function() {
+    return 'Ray(type: ' + this.type + ', originPt: ' + this.originPt + ', angleDeg: ' + this.angleDeg + ')';
+  }
+
+  /**
+   * Returns the ray that, assuming the given ray is an edge, is
+   * the same line segment measured from the opposite end and
+   * with an opposite direction.
+   * The new ray is also given a complementary type-string.
+   */
+  Ray.prototype.getEdgeComplement = function() {
+    var originPt = this.originPt.add( this.direction )
+      , angleDeg = (this.angleDeg + 180) % 360
+      , type;
+
+    switch( this.type ) {
+      case 'ea+': type = 'ea-' ; break;
+      case 'ea-': type = 'ea+' ; break;
+      case 'eb+': type = 'eb-' ; break;
+      case 'eb-': type = 'eb-' ; break;
+      case 'spoke': type = '~spoke' ; break;
     }
 
-    edgeLinks.forEach( function(edgeLink, edgeIdx) {
-      var edgeType = edgeLink[0];
-      linkTypeEdges[edgeType] = edgeIdx;
-    });
-    this.linkTypeEdges = linkTypeEdges;
-
-    this.getEdgeOrientation = function(edgeIdx) {
-      return (
-        this.orientationDeg + this.edgeOrientationOffsets[edgeIdx]
-      ) % 360;
-    };
-
-    this.getVertexPoint = function(vertexIdx) {
-      var baseVertexPoint = this.baseVertexPoints[vertexIdx]
-        , baseX = baseVertexPoint[0]
-        , baseY = baseVertexPoint[1]
-        , orientationRad = this.orientationDeg * Math.PI / 180
-        , cosO = Math.cos(orientationRad)
-        , sinO = Math.sin(orientationRad)
-      ;
-
-      return [
-          this.x + baseX * cosO - baseY * sinO
-        , this.y + baseY * cosO + baseX * sinO
-      ];
-    };
-  }
+    return new Ray( type, originPt, angleDeg );
+  };
 
   /**
-   * Prototype for tiles with angles of 72 and 108 degrees.
+   * A Rhombus (diamond) shaped tile described as the point
+   * location of its initial vertex (origin) and the angle of
+   * orientation of its first edge counterclockwise from the
+   * origin.
    */
-  function FatTile() { }
-  FatTile.prototype = new Tile(72,
-    [
-        [0, 1]
-      , [2, 3]
-      , [3, 2]
-      , [1, 0]
-    ]);
-
-  /**
-   * Prototype for tiles with angles of 36 and 144 degrees.
-   */
-  function SkinnyTile() { }
-  SkinnyTile.prototype = new Tile(36,
-    [
-        [1, 0]
-      , [0, 1]
-      , [3, 2]
-      , [2, 3]
-    ]);
-
-  var TileAbbrTypeMap = {
-      F: FatTile
-    , S: SkinnyTile
-  }
-
-  function applyTileShapeToPathEl(tile, pathEl) {
-    var psl = pathEl.pathSegList;
-
-    tile.eachBaseVertexCoords( function(x, y, idx) {
-      var createSegFn = (idx == 0) ?
-        'createSVGPathSegMovetoAbs' :
-        'createSVGPathSegLinetoAbs' ;
-      psl.appendItem( fatTileEl[createSegFn](x, y) );
-    });
-    psl.appendItem( fatTileEl.createSVGPathSegClosePath() );
-  }
-
-  applyTileShapeToPathEl( FatTile.prototype, fatTileEl );
-  applyTileShapeToPathEl( SkinnyTile.prototype, skinnyTileEl );
-
-  renderTiles(
-    'F',
-    [   ['S', {t:0, e:1}]
-      , ['F', {t:1, e:3}]
-    ]
-  );
-  adjustWindow();
-
-  /**
-   * initialTileAbbr is 'F' for a fat tile or 'S' for a skinny
-   * tile.
-   *
-   * tileBranches is an array of instructions for attaching tiles
-   * to previously added tiles. Each instrivtion is an array
-   * containing a tile abbreviation letter and an opject with "t"
-   * (tile index) and "e" (edge index) values.
-   *
-   * The index of the initial tile is 0 the index of each
-   * additional tile is 1 greater than the previously added tile.
-   * The edges of a tile are numbered starting from zero and
-   * proceeding counterclockwise around the tile.
-   *
-   * Since each tile has exactly one edge that can be attached to
-   * any specific edge of any other tile, the new tile is
-   * automatically rotated to connect its appropriate edge to
-   * the specified edge of the existing tile.
-   */
-  function renderTiles(initialTileAbbr, tileBranches) {
-    var tileList = []
-      , useFatTemplateEl
-      , useSkinnyTemplateEl
-      , tileTypeElMap
-      , initialTile
-      , initialTileEl
-      , i
+  function Tile( type, smallAngleDeg, edgeTypes, originPt, orientationDeg ) {
+    var largeAngleDeg = 180 - smallAngleDeg
+      , edgeRay0 = new Ray(
+          edgeTypes[0] , originPt , orientationDeg
+        )
+      , edgeRay1 = new Ray(
+            edgeTypes[1]
+          , edgeRay0.originPt.add( edgeRay0.direction )
+          , (edgeRay0.angleDeg + smallAngleDeg) % 360
+        )
+      , edgeRay2 = new Ray(
+            edgeTypes[2]
+          , edgeRay1.originPt.add( edgeRay1.direction )
+          , (edgeRay1.angleDeg + largeAngleDeg) % 360
+        )
+      , edgeRay3 = new Ray(
+            edgeTypes[3]
+          , edgeRay2.originPt.add( edgeRay2.direction )
+          , (edgeRay2.angleDeg + smallAngleDeg) % 360
+        )
     ;
 
-    tilingEl.innerHTML =
-      "<use href='#fat-tile' xlink:href='#fat-tile' />" +
-      "<use href='#skinny-tile' xlink:href='#skinny-tile' />";
+    this.type = type;
+    this.smallAngleDeg  = smallAngleDeg;
+    this.originPt       = originPt;
+    this.orientationDeg = orientationDeg;
 
-    tileTypeElMap = {
-        F: tilingEl.childNodes[0].cloneNode()
-      , S: tilingEl.childNodes[1].cloneNode()
-    };
-
-    tilingEl.innerHTML = '';
-
-    initialTile = new (TileAbbrTypeMap[initialTileAbbr])();
-    tileList.push( initialTile );
-    initialTileEl = tileTypeElMap[initialTileAbbr].cloneNode();
-    initialTile.element = initialTileEl;
-
-    tilingEl.appendChild( initialTileEl );
-
-    tileBranches.forEach( function(tileAttachment) {
-      var tileAbbr = tileAttachment[0]
-        , attachToTileIdx = tileAttachment[1]['t']
-        , attachToEdgeIdx = tileAttachment[1]['e']
-        , attachToTile = tileList[attachToTileIdx]
-        , attachEdgeType = attachToTile.edgeLinks[attachToEdgeIdx][1]
-        , tile = new (TileAbbrTypeMap[tileAbbr])()
-        , attachEdgeIdx = tile.linkTypeEdges[attachEdgeType]
-        , tileEl = tileTypeElMap[tileAbbr].cloneNode()
-        , toEdgeStartPoint
-        , edgeUntranslatedEndPoint
-        , tileOffsetVector
-      ;
-
-      tile.element = tileEl;
-
-      tileList.push( tile );
-      tilingEl.appendChild( tileEl );
-
-      tile.orientationDeg = (
-          attachToTile.getEdgeOrientation(attachToEdgeIdx)
-        - tile.edgeOrientationOffsets[attachEdgeIdx]
-        + 180 + 360
-      ) % 360;
-
-      toEdgeStartPoint = attachToTile.getVertexPoint( attachToEdgeIdx );
-      edgeUntranslatedEndPoint = tile.getVertexPoint( (attachEdgeIdx + 1) % 4 );
-
-      tile.x = toEdgeStartPoint[0] - edgeUntranslatedEndPoint[0]
-      tile.y = toEdgeStartPoint[1] - edgeUntranslatedEndPoint[1];
-
-      tileEl.setAttribute(
-        'transform',
-        'translate(' + tile.x + ', ' + tile.y + ') rotate(' + tile.orientationDeg + ')'
-      );
-    });
+    this.edges = [ edgeRay0, edgeRay1, edgeRay2, edgeRay3 ];
+    this.vertices = [
+        edgeRay0.originPt
+      , edgeRay1.originPt
+      , edgeRay2.originPt
+      , edgeRay3.originPt
+    ];
   }
-
-  function adjustWindow() {
-    var extents
-      , contentSize
+  Tile.prototype.getRays = function() {
+    var spokes = []
+      , edgeIdx
+      , edgeRay
+      , adjEdgeIdx
+      , spokeAngleDeg
+      , adjAngleDeg
+      , spoke
     ;
 
-    extents = tilingEl.getBBox();
-    contentSize = extents.width > extents.height ?
-      extents.width :
-      extents.height;
-    contentSize += 2.0;
-    windowEl.transform.baseVal.getItem(0).setScale(2.0 / contentSize, 2.0 / contentSize);
-    windowEl.transform.baseVal.getItem(1).setTranslate(-extents.x - extents.width / 2.0, -extents.y - extents.height / 2.0);
+    for( edgeIdx=0 ; edgeIdx < 4; edgeIdx++ ) {
+      adjEdgeIdx = ( edgeIdx + 3 ) % 4;
+      edgeRay = this.edges[ edgeIdx ];
+      adjAngleDeg = ( this.edges[ adjEdgeIdx ].angleDeg + 180 ) % 360;
+      spokeAngleDeg = this.edges[ edgeIdx ].angleDeg;
+      while( true ) {
+        spokeAngleDeg = ( spokeAngleDeg + 36 ) % 360;
+        if( spokeAngleDeg === adjAngleDeg ) {
+          break;
+        } else {
+          spoke = new Ray( 'spoke', edgeRay.originPt, spokeAngleDeg );
+          spokes.push( spoke );
+        }
+      }
+    }
+
+    return this.edges.concat( spokes );
+  };
+
+  function buildFatTile( originPt, orientation ) {
+    return new Tile(
+      'fat', 72, [ 'ea+', 'eb+', 'eb-', 'ea-' ],
+      originPt, orientation
+    );
   }
+
+  function buildSkinnyTile( originPt, orientation ) {
+    return new Tile(
+      'skinny', 36, [ 'ea-', 'ea+', 'eb-', 'eb+' ],
+      originPt, orientation
+    );
+  }
+
+  function renderTile( tile ) {
+    var pathEl = document.createElementNS("http://www.w3.org/2000/svg", 'path')
+      , psl = pathEl.pathSegList;
+    ;
+
+    pathEl.setAttribute(
+      'class',
+      'pt-tile pt-' + tile.type
+    );
+    psl.appendItem( pathEl.createSVGPathSegMovetoAbs(
+        tile.vertices[0].x.toFloat()
+      , tile.vertices[0].y.toFloat()
+    ) );
+    psl.appendItem( pathEl.createSVGPathSegLinetoAbs(
+        tile.vertices[1].x.toFloat()
+      , tile.vertices[1].y.toFloat()
+    ) );
+    psl.appendItem( pathEl.createSVGPathSegLinetoAbs(
+        tile.vertices[2].x.toFloat()
+      , tile.vertices[2].y.toFloat()
+    ) );
+    psl.appendItem( pathEl.createSVGPathSegLinetoAbs(
+        tile.vertices[3].x.toFloat()
+      , tile.vertices[3].y.toFloat()
+    ) );
+    psl.appendItem( pathEl.createSVGPathSegClosePath() );
+
+    tilingEl.appendChild( pathEl );
+  }
+
+  function TileMap() {
+    this.tiles = [];
+    this.rays = {};
+  }
+  TileMap.prototype.addTile = function addTile( tile ) {
+    var me = this
+      , tileRays = tile.getRays()
+    ;
+
+    tileRays.forEach( function( ray ) {
+      var rayComplement, rayComplementMatch;
+      if( me.rays[ray.key] ) {
+        throw "Tile ray " + ray + " would coincide with an existing ray.";
+      }
+
+      rayComplement = ray.getEdgeComplement();
+      rayComplementMatch = me.rays[ rayComplement.key ];
+      if( rayComplementMatch ) {
+        if( rayComplementMatch.type !== rayComplement.type ) {
+          rayComplementMatch
+          throw "Tile edge-complement ray " + rayComplement + " would coincide with an existing ray of a different type.";
+        }
+      }
+    });
+
+    tileRays.forEach( function( ray ) {
+      me.rays[ray.key] = ray;
+    });
+    this.tiles.push( tile );
+  };
+
+  var tileMap = new TileMap();
+  var tile = buildSkinnyTile( new Point( new X(0,0), new Y(0,0) ), 0 );
+  var tile2 = buildFatTile( new Point( new X(2,-2), new Y(0,0) ), 360 - 144 - 36 );
+
+  tileMap.addTile( tile );
+  tileMap.addTile( tile2 );
+  renderTile( tile );
+  renderTile( tile2 );
 
 })(document, Math);

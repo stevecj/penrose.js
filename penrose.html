@@ -64,19 +64,9 @@
   </div>
 
   <svg id='pt-panel' viewbox='-1 -1 2 2' preserveAspectRatio='xMidYMid meet'>
-    <defs>
-      <!-- `d` attributes of tile paths are assigned by JavaScript code. -->
-      <path id='skinny-tile' class='pt-tile pt-skinny' />
-      <path id='fat-tile' class='pt-tile pt-fat' />
-    </defs>
     <g id='pt-cartesian-orientation' transform='scale(1.0 -1.0)'>
       <g id='pt-window' transform="scale(1.0 1.0) translate(0 0)">
         <g id='pt-tiling'>
-          <use href='#fat-tile' xlink:href='#fat-tile' />
-          <use href='#skinny-tile' xlink:href='#skinny-tile' />
-        </g>
-        <g id='pt-overlay'>
-          <rect id='reference-point' x='0' y='0' width='0.00001' height='0.00001' stroke='grey' stroke-width='16' stroke-linejoin='round' vector-effect='non-scaling-stroke'/>
         </g>
       </g>
     </g>
